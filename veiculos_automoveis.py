@@ -8,7 +8,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 
 # Carregar os dados
-df = pd.read_excel(r"Dados/FinalDataframeAuto.xlsx")
+df = pd.read_excel(r"Data/FinalDataframeAuto.xlsx")
 
 # Excluir a coluna Rank se existir
 if 'Rank' in df.columns:
