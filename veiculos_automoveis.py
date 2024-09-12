@@ -15,8 +15,11 @@ if 'Rank' in df.columns:
     del df['Rank']
 
 # Preprocessamento dos dados
-timefmt = "%d/%m/%Y"
-df['Data'] = pd.to_datetime(df['Data'], format=timefmt)
+df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
+
+# Extract only the date part and convert to string for comparisons
+df['Data'] = df['Data'].dt.strftime('%Y-%m-%d')
+
 df['Modelo'] = df['Modelo'].str.replace(' ', '').str.upper()
 
 # Assuming listModelos is already populated
