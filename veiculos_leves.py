@@ -8,7 +8,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 
 # Carregar os dados
-df = pd.read_excel(r"Data/FinalDataframeAuto.xlsx")
+df = pd.read_excel(r"Data/FinalDataframeLeves.xlsx")
 
 # Excluir a coluna Rank se existir
 if 'Rank' in df.columns:
@@ -186,6 +186,7 @@ st.success(f'RMSE: {round(rmse, 0)}')
 
 ############################# Sum of the Sales and the Prevision by Year ##############################
 
+
 # Assuming 'Data' is in datetime format
 result_df['Year'] = pd.to_datetime(result_df['Data']).dt.year
 
@@ -232,6 +233,7 @@ ax.legend(fontsize=20)
 
 # Display the plot in the Streamlit app
 st.pyplot(fig)  # Passes the figure to Streamlit for rendering
+###########################################################################################################
 
 # Title on Streamlit
 st.markdown(
@@ -419,7 +421,7 @@ ax.legend(fontsize=20)
 
 # Display the plot in the Streamlit app
 st.pyplot(fig)  # Passes the figure to Streamlit for rendering
-
+##########################################################################################
 
 # Title on Streamlit
 st.markdown(
