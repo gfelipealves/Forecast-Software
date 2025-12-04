@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from xgboost import XGBRegressor
+import plotly.express as px
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.utils import resample
@@ -54,19 +55,40 @@ analiseAuto.index = pd.to_datetime(analiseAuto.index)
 analiseAuto = analiseAuto.asfreq('MS')
 
 # Identificar o período de 2010-01-01 a 2019-12-01
-periodo_referencia = (analiseAuto.index >= '2022-01-01') & (analiseAuto.index <= '2024-05-01')
+#periodo_referencia = (analiseAuto.index >= '2022-01-01') & (analiseAuto.index <= '2024-05-01')
 
 # Calcular a mediana para cada mês de janeiro de 2010 a dezembro de 2019
-medianas_por_mes = analiseAuto.loc[periodo_referencia].groupby(analiseAuto.loc[periodo_referencia].index.month)['Quantidade'].median()
+#medianas_por_mes = analiseAuto.loc[periodo_referencia].groupby(analiseAuto.loc[periodo_referencia].index.month)['Quantidade'].median()
 
 # Identificar o período de 2020-01-01 a 2021-12-01
-periodo_substituicao = (analiseAuto.index >= '2020-01-01') & (analiseAuto.index <= '2021-12-01')
+#periodo_substituicao = (analiseAuto.index >= '2020-01-01') & (analiseAuto.index <= '2021-12-01')
 
 # Substituir os valores NaN pela mediana do respectivo mês
-for mes in range(1, 13):
-    mask = (analiseAuto.index.month == mes) & periodo_substituicao
-    analiseAuto.loc[mask, 'Quantidade'] = medianas_por_mes[mes]
+#for mes in range(1, 13):
+#    mask = (analiseAuto.index.month == mes) & periodo_substituicao
+#    analiseAuto.loc[mask, 'Quantidade'] = medianas_por_mes[mes]
     #analiseAuto.loc[mask, 'Quantidade'] = analiseAuto.loc[mask, 'Quantidade'].fillna(medianas_por_mes)
+
+# Identificar o período de 2022-01-01 a 2024-05-01
+periodo_referencia = (analiseAuto.index >= '2022-01-01') & (analiseAuto.index <= '2024-05-01')
+
+# Calcular a mediana por mês
+medianas_por_mes = analiseAuto.loc[periodo_referencia].groupby(
+    analiseAuto.loc[periodo_referencia].index.month
+)['Quantidade'].median()
+
+# Se NÃO existir produção no período, pular o step
+if medianas_por_mes.empty:
+    st.warning("⚠️ Este modelo não teve produção no período 2020–2022. O cálculo das medianas para Covid (2020–2021) será ignorado.")
+else:
+    # Identificar o período de substituição (Covid)
+    periodo_substituicao = (analiseAuto.index >= '2020-01-01') & (analiseAuto.index <= '2021-12-01')
+
+    # Substituir os NaN apenas para meses existentes em medianas_por_mes
+    for mes in range(1, 13):
+        if mes in medianas_por_mes.index:
+            mask = (analiseAuto.index.month == mes) & periodo_substituicao
+            analiseAuto.loc[mask, 'Quantidade'] = medianas_por_mes[mes]
 
 # Resetar o índice do DataFrame
 analiseAuto.reset_index(inplace=True)
@@ -421,6 +443,7 @@ ax.legend(fontsize=20)
 st.pyplot(fig)  # Passes the figure to Streamlit for rendering
 
 
+################ Table with all data ######################
 # Title on Streamlit
 st.markdown(
     "<h1 style='font-size:15px;'>Database with the prevision</h1>",
@@ -429,3 +452,145 @@ st.markdown(
 
 # Display the DataFrame in the Streamlit app
 st.dataframe(result_df)
+
+################ Statitiscs of the models produced by Month ######################
+
+df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
+df['Modelo'] = df['Modelo'].str.replace(' ', '').str.upper()
+
+# Criar colunas auxiliares
+df['Ano'] = df['Data'].dt.year
+df['Mes'] = df['Data'].dt.month
+
+# Criar Data no formato Year-Month
+df['DataYM'] = df['Data'].dt.to_period('M').dt.to_timestamp()
+
+# ----------------------------
+# FILTROS STREAMLIT
+# ----------------------------
+st.subheader("Comparação de Modelos por Período")
+
+# Filtro de data
+data_inicio = st.date_input("Data Inicial", df['Data'].min())
+data_fim = st.date_input("Data Final", df['Data'].max())
+
+df_filtrado_data = df[
+    (df['Data'] >= pd.to_datetime(data_inicio)) &
+    (df['Data'] <= pd.to_datetime(data_fim))
+]
+
+# Filtro da quantidade de modelos
+qtd_modelo = st.selectbox(
+    "Selecione a quantidade de modelos a visualizar",
+    [1, 2, 3, 4, 5]
+)
+
+# Filtro de n modelos
+modelos = df['Modelo'].unique()
+modelos_selecionados = st.multiselect(
+    f"Selecione {qtd_modelo} modelos para comparar",
+    modelos,
+    max_selections=qtd_modelo
+)
+
+if len(modelos_selecionados) == qtd_modelo:
+
+    df_filtrado = df_filtrado_data[df_filtrado_data['Modelo'].isin(modelos_selecionados)]
+
+    # Agrupamento por modelo e mês
+    df_group = df_filtrado.groupby(['Modelo', 'DataYM'], as_index=False)['Quantidade'].sum()
+
+    # ----------------------------
+    # GRÁFICO DE LINHAS INTERATIVO (PLOTLY)
+    # ----------------------------
+    fig = px.line(
+        df_group,
+        x="DataYM",
+        y="Quantidade",
+        color="Modelo",
+        markers=True,
+        title= "Comparação entre " + ", ".join(modelos_selecionados),
+        labels={"DataYM": "Mês/Ano", "Quantidade": "Vendas"},
+        hover_name="Modelo",
+        hover_data={"DataYM": "|%m/%Y", "Quantidade": True},
+    )
+
+    fig.update_layout(
+        xaxis_tickformat="%m/%Y",
+        xaxis_title="Data",
+        yaxis_title="Vendas",
+        height=600
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --------------------------------------------------------
+    # GRÁFICO 3 — SOMATÓRIA MENSAL COM CORES POR MODELO + LINHA MÉDIA
+    # --------------------------------------------------------
+    st.subheader(f"Somatória Mensal dos {qtd_modelo} Modelos (Com cores por modelo e linha média)")
+
+    # Agrupamento por mês e modelo (para manter cores)
+    df_mes_modelo = df_filtrado.groupby(['DataYM', 'Modelo'], as_index=False)['Quantidade'].sum()
+
+    # Soma total por mês (usaremos para a linha média)
+    df_mes_total = df_filtrado.groupby('DataYM', as_index=False)['Quantidade'].sum()
+
+    # Criar o gráfico de barras empilhadas
+    fig_mes = px.bar(
+        df_mes_modelo,
+        x="DataYM",
+        y="Quantidade",
+        color="Modelo",
+        title="Somatório Mensal dos Modelos (Empilhado por Modelo)",
+        labels={"DataYM": "Mês/Ano", "Quantidade": "Vendas"},
+        barmode="stack"
+    )
+
+    # Adicionar LINHA DE MÉDIA TOTAL
+    media_geral = df_mes_total["Quantidade"].mean()
+
+    fig_mes.add_scatter(
+        x=df_mes_total["DataYM"],
+        y=[media_geral] * len(df_mes_total),
+        mode="lines",
+        name=f"Média Mensal ({media_geral:.0f})",
+        line=dict(dash="dash", width=3)
+    )
+
+    # Ajustes visuais
+    fig_mes.update_layout(
+        xaxis_tickformat="%m/%Y",
+        xaxis_title="Mês/Ano",
+        yaxis_title="Vendas",
+        height=600
+    )
+
+    st.plotly_chart(fig_mes, use_container_width=True)
+
+    # --------------------------------------------------------
+    # GRÁFICO DE BARRAS VERTICAIS EMPILHADAS
+    # Somatório anual por modelo (cores diferentes)
+    # --------------------------------------------------------
+    st.subheader("Volume Total Anual dos 3 Modelos (Com cores por modelo)")
+
+    df_ano_modelo = df_filtrado.groupby(['Ano', 'Modelo'], as_index=False)['Quantidade'].sum()
+
+    fig_bar_stack = px.bar(
+        df_ano_modelo,
+        x="Ano",
+        y="Quantidade",
+        color="Modelo",
+        title="Volume Total dos 3 Modelos por Ano",
+        labels={"Quantidade": "Vendas", "Ano": "Ano", "Modelo": "Modelo"},
+        barmode="stack"   # <-- barras empilhadas por modelo
+    )
+
+    fig_bar_stack.update_layout(
+        height=600,
+        xaxis_title="Ano",
+        yaxis_title="Total Vendido"
+    )
+
+    st.plotly_chart(fig_bar_stack, use_container_width=True)
+
+
