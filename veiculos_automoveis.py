@@ -453,144 +453,148 @@ st.markdown(
 # Display the DataFrame in the Streamlit app
 st.dataframe(result_df)
 
-################ Statitiscs of the models produced by Month ######################
+################ Statistics of the models produced by Month ######################
 
-df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
-df['Modelo'] = df['Modelo'].str.replace(' ', '').str.upper()
+# Rename columns from Portuguese → English
+df = df.rename(columns={
+    "Data": "Date",
+    "Modelo": "Model",
+    "Quantidade": "Quantity"
+})
 
-# Criar colunas auxiliares
-df['Ano'] = df['Data'].dt.year
-df['Mes'] = df['Data'].dt.month
+df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+df['Model'] = df['Model'].str.replace(' ', '').str.upper()
 
-# Criar Data no formato Year-Month
-df['DataYM'] = df['Data'].dt.to_period('M').dt.to_timestamp()
+# Create auxiliary columns
+df['Year'] = df['Date'].dt.year
+df['Month'] = df['Date'].dt.month
+
+# Create Year-Month format
+df['DateYM'] = df['Date'].dt.to_period('M').dt.to_timestamp()
 
 # ----------------------------
-# FILTROS STREAMLIT
+# STREAMLIT FILTERS
 # ----------------------------
-st.subheader("Comparação de Modelos por Período")
+st.subheader("Model Comparison by Period")
 
-# Filtro de data
-data_inicio = st.date_input("Data Inicial", df['Data'].min())
-data_fim = st.date_input("Data Final", df['Data'].max())
+# Date filters
+start_date = st.date_input("Start Date", df['Date'].min())
+end_date = st.date_input("End Date", df['Date'].max())
 
-df_filtrado_data = df[
-    (df['Data'] >= pd.to_datetime(data_inicio)) &
-    (df['Data'] <= pd.to_datetime(data_fim))
+df_filtered_date = df[
+    (df['Date'] >= pd.to_datetime(start_date)) &
+    (df['Date'] <= pd.to_datetime(end_date))
 ]
 
-# Filtro da quantidade de modelos
-qtd_modelo = st.selectbox(
-    "Selecione a quantidade de modelos a visualizar",
+# Model quantity filter
+model_qty = st.selectbox(
+    "Select the number of models to display",
     [1, 2, 3, 4, 5]
 )
 
-# Filtro de n modelos
-modelos = df['Modelo'].unique()
-modelos_selecionados = st.multiselect(
-    f"Selecione {qtd_modelo} modelos para comparar",
-    modelos,
-    max_selections=qtd_modelo
+# Model filter
+available_models = df['Model'].unique()
+selected_models = st.multiselect(
+    f"Select {model_qty} model(s) to compare",
+    available_models,
+    max_selections=model_qty
 )
 
-if len(modelos_selecionados) == qtd_modelo:
+if len(selected_models) == model_qty:
 
-    df_filtrado = df_filtrado_data[df_filtrado_data['Modelo'].isin(modelos_selecionados)]
+    df_filtered = df_filtered_date[df_filtered_date['Model'].isin(selected_models)]
 
-    # Agrupamento por modelo e mês
-    df_group = df_filtrado.groupby(['Modelo', 'DataYM'], as_index=False)['Quantidade'].sum()
+    # Grouping by model and month
+    df_group = df_filtered.groupby(['Model', 'DateYM'], as_index=False)['Quantity'].sum()
 
     # ----------------------------
-    # GRÁFICO DE LINHAS INTERATIVO (PLOTLY)
+    # INTERACTIVE LINE CHART (PLOTLY)
     # ----------------------------
     fig = px.line(
         df_group,
-        x="DataYM",
-        y="Quantidade",
-        color="Modelo",
+        x="DateYM",
+        y="Quantity",
+        color="Model",
         markers=True,
-        title= "Comparação entre " + ", ".join(modelos_selecionados),
-        labels={"DataYM": "Mês/Ano", "Quantidade": "Vendas"},
-        hover_name="Modelo",
-        hover_data={"DataYM": "|%m/%Y", "Quantidade": True},
+        title="Comparison between " + ", ".join(selected_models),
+        labels={"DateYM": "Month/Year", "Quantity": "Sales"},
+        hover_name="Model",
+        hover_data={"DateYM": "|%m/%Y", "Quantity": True},
     )
 
     fig.update_layout(
         xaxis_tickformat="%m/%Y",
-        xaxis_title="Data",
-        yaxis_title="Vendas",
+        xaxis_title="Date",
+        yaxis_title="Sales",
         height=600
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
     # --------------------------------------------------------
-    # GRÁFICO 3 — SOMATÓRIA MENSAL COM CORES POR MODELO + LINHA MÉDIA
+    # CHART 2 — MONTHLY SUM WITH MODEL COLORS + AVERAGE LINE
     # --------------------------------------------------------
-    st.subheader(f"Somatória Mensal dos {qtd_modelo} Modelos (Com cores por modelo e linha média)")
+    st.subheader(f"Monthly Total of {model_qty} Model(s) (Colored by Model + Average Line)")
 
-    # Agrupamento por mês e modelo (para manter cores)
-    df_mes_modelo = df_filtrado.groupby(['DataYM', 'Modelo'], as_index=False)['Quantidade'].sum()
+    # Group by month and model (to keep colors)
+    df_month_model = df_filtered.groupby(['DateYM', 'Model'], as_index=False)['Quantity'].sum()
 
-    # Soma total por mês (usaremos para a linha média)
-    df_mes_total = df_filtrado.groupby('DataYM', as_index=False)['Quantidade'].sum()
+    # Monthly total sum (for average line)
+    df_month_total = df_filtered.groupby('DateYM', as_index=False)['Quantity'].sum()
 
-    # Criar o gráfico de barras empilhadas
-    fig_mes = px.bar(
-        df_mes_modelo,
-        x="DataYM",
-        y="Quantidade",
-        color="Modelo",
-        title="Somatório Mensal dos Modelos (Empilhado por Modelo)",
-        labels={"DataYM": "Mês/Ano", "Quantidade": "Vendas"},
+    # Stacked bar chart
+    fig_month = px.bar(
+        df_month_model,
+        x="DateYM",
+        y="Quantity",
+        color="Model",
+        title="Monthly Total of Models (Stacked by Model)",
+        labels={"DateYM": "Month/Year", "Quantity": "Sales"},
         barmode="stack"
     )
 
-    # Adicionar LINHA DE MÉDIA TOTAL
-    media_geral = df_mes_total["Quantidade"].mean()
+    # Add TOTAL AVERAGE LINE
+    overall_avg = df_month_total["Quantity"].mean()
 
-    fig_mes.add_scatter(
-        x=df_mes_total["DataYM"],
-        y=[media_geral] * len(df_mes_total),
+    fig_month.add_scatter(
+        x=df_month_total["DateYM"],
+        y=[overall_avg] * len(df_month_total),
         mode="lines",
-        name=f"Média Mensal ({media_geral:.0f})",
+        name=f"Monthly Average ({overall_avg:.0f})",
         line=dict(dash="dash", width=3)
     )
 
-    # Ajustes visuais
-    fig_mes.update_layout(
+    fig_month.update_layout(
         xaxis_tickformat="%m/%Y",
-        xaxis_title="Mês/Ano",
-        yaxis_title="Vendas",
+        xaxis_title="Month/Year",
+        yaxis_title="Sales",
         height=600
     )
 
-    st.plotly_chart(fig_mes, use_container_width=True)
+    st.plotly_chart(fig_month, use_container_width=True)
 
     # --------------------------------------------------------
-    # GRÁFICO DE BARRAS VERTICAIS EMPILHADAS
-    # Somatório anual por modelo (cores diferentes)
+    # CHART 3 — ANNUAL STACKED BAR (TOTAL SALES BY MODEL PER YEAR)
     # --------------------------------------------------------
-    st.subheader("Volume Total Anual dos 3 Modelos (Com cores por modelo)")
+    st.subheader("Annual Total Volume of Selected Models (Colored by Model)")
 
-    df_ano_modelo = df_filtrado.groupby(['Ano', 'Modelo'], as_index=False)['Quantidade'].sum()
+    df_year_model = df_filtered.groupby(['Year', 'Model'], as_index=False)['Quantity'].sum()
 
     fig_bar_stack = px.bar(
-        df_ano_modelo,
-        x="Ano",
-        y="Quantidade",
-        color="Modelo",
-        title="Volume Total dos 3 Modelos por Ano",
-        labels={"Quantidade": "Vendas", "Ano": "Ano", "Modelo": "Modelo"},
-        barmode="stack"   # <-- barras empilhadas por modelo
+        df_year_model,
+        x="Year",
+        y="Quantity",
+        color="Model",
+        title=f"Annual Total Volume of {model_qty} Model(s)",
+        labels={"Quantity": "Sales", "Year": "Year", "Model": "Model"},
+        barmode="stack"
     )
 
     fig_bar_stack.update_layout(
         height=600,
-        xaxis_title="Ano",
-        yaxis_title="Total Vendido"
+        xaxis_title="Year",
+        yaxis_title="Total Sold"
     )
 
     st.plotly_chart(fig_bar_stack, use_container_width=True)
-
 
